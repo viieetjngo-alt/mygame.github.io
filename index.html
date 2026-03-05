@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Oxy Adventure: IMPOSSIBLE</title>
+    <style>
+        * { box-sizing: border-box; touch-action: none; user-select: none; }
+        body { margin: 0; padding: 0; background: #000; color: white; font-family: 'Courier New', Courier, monospace; overflow: hidden; }
+        canvas { display: block; width: 100vw; height: 100vh; }
+        
+        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; pointer-events: none; padding: 20px; }
+        .stat-box { background: rgba(255,0,0,0.2); border: 2px solid #ff0055; padding: 10px; border-radius: 10px; display: inline-block; }
+        
+        #inventory { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); display: flex; gap: 10px; pointer-events: auto; }
+        .slot { width: 60px; height: 60px; border: 2px solid #444; background: rgba(0,0,0,0.8); border-radius: 5px; display: flex; align-items: center; justify-content: center; font-size: 10px; cursor: pointer; text-align: center; }
+        .slot.active { border-color: #0ff; box-shadow: 0 0 15px #0ff; color: #0ff; }
+
+        #overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 1000; text-align: center; }
+        #boss-bar { position: absolute; top: 60px; left: 50%; transform: translateX(-50%); width: 80%; display: none; }
+        #hp-bg { width: 100%; height: 15px; background: #333; border: 2px solid #fff; border-radius: 10px; overflow: hidden; }
+        #hp-fill { width: 100%; height: 100%; background: linear-gradient(90deg, #ff0000, #ff8000); }
+
+        .btn { background: #ff0055; color: white; border: none; padding: 20px 40px; font-size: 20px; cursor: pointer; font-weight: bold; border-radius: 5px; margin-top: 20px; }
+        .quiz-container { display: none; width: 90%; max-width: 500px; background: #111; padding: 20px; border: 2px solid #ff0055; }
+    </style>
+</head>
+<body>
+
+    <div id="ui-layer">
+        <div class="stat-box">
+            CHƯƠNG: <span id="lv-val">1</span> | 
+            MỤC TIÊU: <span id="sc-val">0</span>/<span id="goal-val">10</span>
+        </div>
+    </div>
+
+    <div id="boss-bar">
+        <div id="boss-name" style="color:red; font-weight:bold; margin-bottom:5px">BOSS X</div>
+        <div id="hp-bg"><div id="hp-fill"></div></div>
+    </div>
+
+    <div id="inventory">
+        <div class="slot active" id="w0" onclick="setWeapon(0)">OXY<br>1</div>
+        <div class="slot" id="w1" onclick="setWeapon(1)">BEAM<br>2</div>
+        <div class="slot" id="w2" onclick="setWeapon(2)">SPREAD<br>3</div>
+    </div>
+
+    <div id="overlay">
+        <div id="menu">
+            <h1 style="color:#ff0055; font-size: 50px; text-shadow: 0 0 20px red;">IMPOSSIBLE OXY</h1>
+            <p style="color:#0ff">NHẤN 1, 2, 3 ĐỂ ĐỔI VŨ KHÍ</p>
+            <button class="btn" onclick="startGame()">BẮT ĐẦU TẬN THẾ</button>
+        </div>
+        <div id="quiz" class="quiz-container">
+            <h2 id="q-status" style="color:red">BẠN ĐÃ CHẾT</h2>
+            <p id="q-text"></p>
+            <div id="q-opts"></div>
+        </div>
+    </div>
+
+    <canvas id="game"></canvas>
+
+    <script>
+        const canvas = document.getElementById('game');
+        const ctx = canvas.getContext('2d');
+        let currentLevel = 1, score = 0, gameRunning = false, isBossMode = false;
+        let particles = [], obstacles = [], bullets = [], bossBullets = [];
+        let player = { x: 100, y: 300, r: 20 };
+        let boss = { x: 0, y: 0, hp: 0, max: 0, active: false, phase: 1, timer: 0 };
+        let shake = 0, weaponIdx = 0;
+
+        const weapons = [
+            { cd: 150, speed: 20, dmg: 1, color: '#0ff', type: 'normal' },
+            { cd: 800, speed: 12, dmg: 10, color: '#ff0', type: 'pierce' },
+            { cd: 300, speed: 15, dmg: 2, color: '#fff', type: 'spread' }
+        ];
+
+        const levels = {
+            1: { goal: 10, bossHp: 100, name: "KHOANG MŨI TỬ THẦN", bName: "PHÙ THỦY PHẤN HOA" },
+            2: { goal: 15, bossHp: 300, name: "KHÍ QUẢN RỰC LỬA", bName: "SIÊU TRÙM NICOTINE" },
+            3: { goal: 20, bossHp: 1000, name: "MẠCH MÁU HỦY DIỆT", bName: "HẮC ÁM CHỦ TỂ" }
+        };
+
+        const questions = [
+            { q: "Cơ hoành hưng phấn thì sao?", a: ["Hít vào", "Thở ra"], c: 0 },
+            { q: "Oxy vào máu nhờ đâu?", a: ["Khuếch tán", "Thẩm thấu"], c: 0 },
+            { q: "Phế nang nằm ở đâu?", a: ["Phổi", "Gan"], c: 0 }
+        ];
+
+        function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+        window.addEventListener('resize', resize); resize();
+
+        window.addEventListener('keydown', e => { if([1,2,3].includes(Number(e.key))) setWeapon(e.key-1); });
+        canvas.addEventListener('touchmove', e => { player.y = e.touches[0].clientY; }, {passive: false});
+        canvas.addEventListener('mousemove', e => { player.y = e.clientY; });
+
+        function setWeapon(i) {
+            weaponIdx = i;
+            document.querySelectorAll('.slot').forEach((s, idx) => s.className = idx == i ? 'slot active' : 'slot');
+        }
+
+        function createExplosion(x, y, color) {
+            for(let i=0; i<10; i++) particles.push({ x, y, vx: (Math.random()-0.5)*10, vy: (Math.random()-0.5)*10, life: 20, color });
+        }
+
+        function startGame() {
+            document.getElementById('overlay').style.display = 'none';
+            score = 0; obstacles = []; bullets = []; bossBullets = []; particles = [];
+            isBossMode = false; boss.active = false;
+            gameRunning = true; update(); spawn(); autoShoot();
+        }
+
+        function spawn() {
+            if(!gameRunning || isBossMode) return;
+            obstacles.push({ x: canvas.width, y: Math.random()*canvas.height, s: 30 + currentLevel*5 });
+            setTimeout(spawn, 800 - currentLevel*100);
+        }
+
+        function autoShoot() {
+            if(!gameRunning) return;
+            let w = weapons[weaponIdx];
+            if(w.type === 'spread') {
+                for(let i=-1; i<=1; i++) bullets.push({ x: player.x+20, y: player.y, vx: w.speed, vy: i*3, color: w.color, dmg: w.dmg });
+            } else {
+                bullets.push({ x: player.x+20, y: player.y, vx: w.speed, vy: 0, color: w.color, dmg: w.dmg, pierce: w.type === 'pierce' });
+            }
+            setTimeout(autoShoot, w.cd);
+        }
+
+        function startBoss() {
+            isBossMode = true; boss.active = true;
+            boss.max = levels[currentLevel].bossHp; boss.hp = boss.max;
+            boss.x = canvas.width - 200; boss.y = canvas.height/2;
+            document.getElementById('boss-bar').style.display = 'block';
+            document.getElementById('boss-name').innerText = levels[currentLevel].bName;
+        }
+
+        function update() {
+            if(!gameRunning) return;
+            ctx.fillStyle = '#000'; ctx.fillRect(0,0, canvas.width, canvas.height);
+            
+            // Vạch đỏ tử thần
+            ctx.fillStyle = 'red'; ctx.fillRect(10, 0, 5, canvas.height);
+
+            // Shaking effect
+            if(shake > 0) { ctx.translate(Math.random()*shake, Math.random()*shake); shake *= 0.9; }
+
+            // Particles
+            particles.forEach((p, i) => {
+                p.x += p.vx; p.y += p.vy; p.life--;
+                ctx.fillStyle = p.color; ctx.fillRect(p.x, p.y, 3, 3);
+                if(p.life <= 0) particles.splice(i, 1);
+            });
+
+            // Boss Logic
+            if(boss.active) {
+                boss.y += Math.sin(Date.now()/500)*5;
+                ctx.fillStyle = 'red'; ctx.shadowBlur = 20; ctx.shadowColor = 'red';
+                ctx.fillRect(boss.x, boss.y-50, 100, 100); ctx.shadowBlur = 0;
+                document.getElementById('hp-fill').style.width = (boss.hp/boss.max)*100 + '%';
+
+                boss.timer++;
+                if(boss.timer % 60 === 0) { // Boss bắn đạn
+                    if(boss.hp < boss.max*0.3) { // Phase 3: Laser
+                        shake = 10;
+                        ctx.fillStyle = 'white'; ctx.fillRect(0, boss.y-10, canvas.width, 20);
+                        if(Math.abs(player.y - boss.y) < 30) die();
+                    } else {
+                        for(let i=0; i<8; i++) {
+                            let ang = i * Math.PI/4;
+                            bossBullets.push({ x: boss.x, y: boss.y, vx: Math.cos(ang)*8, vy: Math.sin(ang)*8 });
+                        }
+                    }
+                }
+            }
+
+            // Đạn Boss
+            bossBullets.forEach((b, i) => {
+                b.x += b.vx; b.y += b.vy;
+                ctx.fillStyle = '#f0f'; ctx.beginPath(); ctx.arc(b.x, b.y, 8, 0, Math.PI*2); ctx.fill();
+                if(Math.hypot(player.x-b.x, player.y-b.y) < 25) die();
+                if(b.x < 0) bossBullets.splice(i,1);
+            });
+
+            // Đạn Người chơi
+            bullets.forEach((b, i) => {
+                b.x += b.vx; b.y += b.vy;
+                ctx.fillStyle = b.color; ctx.fillRect(b.x, b.y, 20, 5);
+                if(boss.active && b.x > boss.x && b.y > boss.y-50 && b.y < boss.y+50) {
+                    boss.hp -= b.dmg; bullets.splice(i,1);
+                    if(boss.hp <= 0) nextLevel();
+                }
+                if(b.x > canvas.width) bullets.splice(i,1);
+            });
+
+            // Quái
+            obstacles.forEach((o, i) => {
+                o.x -= (5 + currentLevel*2);
+                ctx.fillStyle = '#444'; ctx.fillRect(o.x, o.y, 40, 40);
+                if(o.x < 15) die();
+                if(Math.hypot(player.x-o.x, player.y-o.y) < 30) die();
+                
+                bullets.forEach((b, bi) => {
+                    if(b.x > o.x && b.x < o.x+40 && b.y > o.y && b.y < o.y+40) {
+                        createExplosion(o.x, o.y, '#0ff');
+                        obstacles.splice(i, 1); if(!b.pierce) bullets.splice(bi, 1);
+                        score++; updateUI();
+                        if(score >= levels[currentLevel].goal && !isBossMode) startBoss();
+                    }
+                });
+            });
+
+            // Player
+            ctx.fillStyle = '#0ff'; ctx.beginPath(); ctx.arc(player.x, player.y, player.r, 0, Math.PI*2); ctx.fill();
+            
+            ctx.setTransform(1,0,0,1,0,0);
+            aniId = requestAnimationFrame(update);
+        }
+
+        function updateUI() {
+            document.getElementById('sc-val').innerText = score;
+            document.getElementById('goal-val').innerText = levels[currentLevel].goal;
+            document.getElementById('lv-val').innerText = currentLevel;
+        }
+
+        function nextLevel() {
+            gameRunning = false;
+            if(currentLevel < 3) {
+                currentLevel++;
+                alert("CHÚC MỪNG! SANG CHƯƠNG " + currentLevel);
+                startGame();
+            } else {
+                alert("BẠN LÀ HUYỀN THOẠI! PHÁ ĐẢO IMPOSSIBLE MODE!");
+                location.reload();
+            }
+        }
+
+        function die() {
+            gameRunning = false;
+            document.getElementById('overlay').style.display = 'flex';
+            document.getElementById('menu').style.display = 'none';
+            document.getElementById('quiz').style.display = 'block';
+            
+            const q = questions[Math.floor(Math.random()*questions.length)];
+            document.getElementById('q-text').innerText = q.q;
+            const opts = document.getElementById('q-opts');
+            opts.innerHTML = '';
+            q.a.forEach((txt, i) => {
+                const b = document.createElement('button');
+                b.className = 'btn'; b.style.display = 'block'; b.style.width='100%';
+                b.innerText = txt;
+                b.onclick = () => {
+                    if(i === q.c) startGame();
+                    else location.reload();
+                };
+                opts.appendChild(b);
+            });
+        }
+    </script>
+</body>
+</html>
