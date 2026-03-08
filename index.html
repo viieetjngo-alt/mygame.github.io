@@ -24,7 +24,7 @@
     <div id="quiz-area">
         <div class="progress" id="progress">Câu hỏi 1/10</div>
         <div class="question" id="question">Đang tải câu hỏi...</div>
-        <img src="hinh/hinh.jpg" width="400px"/>
+        <img src="hinh/hinh.jpg" id = "hinh" width="400px"/>
         <div class="options" id="options"></div>
         <button id="next-btn">Tiếp theo</button>
     </div>
@@ -38,16 +38,16 @@
 
 <script>
     const quizData = [
-        { q: "Cơ quan nào sau đây được mệnh danh là 'ngã ba' của hệ hô hấp và tiêu hóa?", a: ["Thanh quản", "Hầu (Họng)", "Khí quản", "Phế quản"], c: 1 },
-        { q: "Đơn vị cấu tạo nhỏ nhất của phổi, nơi diễn ra trao đổi khí là gì?", a: ["Tiểu phế quản", "Niêm mạc", "Phế nang", "Màng phổi"], c: 2 },
-        { q: "Khi chúng ta hít vào, cơ hoành sẽ chuyển động như thế nào?", a: ["Co lại và hạ xuống", "Dãn ra và nâng lên", "Không di chuyển", "Thu nhỏ lại"], c: 0 },
-        { q: "Chất khí nào chiếm tỉ lệ lớn nhất trong không khí ta hít vào?", a: ["Oxy", "Cacbonic", "Nitơ", "Argon"], c: 2 },
-        { q: "Bộ phận nào giúp ngăn thức ăn không rơi vào đường hô hấp khi nuốt?", a: ["Dây thanh quản", "Nắp thanh quản", "Lưỡi gà", "Amidan"], c: 1 },
-        { q: "Phổi phải của người thường có bao nhiêu thùy?", a: ["1 thùy", "2 thùy", "3 thùy", "4 thùy"], c: 2 },
-        { q: "Lớp màng bao bọc bên ngoài phổi được gọi là gì?", a: ["Màng tim", "Màng bụng", "Màng phổi", "Màng xương"], c: 2 },
-        { q: "Chức năng chính của hệ hô hấp là gì?", a: ["Vận chuyển chất dinh dưỡng", "Cung cấp Oxy và loại bỏ CO2", "Điều hòa thân nhiệt", "Tiêu hóa thức ăn"], c: 1 },
-        { q: "Đâu là bộ phận thuộc đường hô hấp dưới?", a: ["Mũi", "Họng", "Thanh quản", "Khí quản"], c: 3 },
-        { q: "Trong máu, Oxy chủ yếu được vận chuyển bởi?", a: ["Bạch cầu", "Tiểu cầu", "Huyết tương", "Hồng cầu (Hemoglobin)"], c: 3 }
+        { q: "Cơ quan nào sau đây được mệnh danh là 'ngã ba' của hệ hô hấp và tiêu hóa?", a: ["Thanh quản", "Hầu (Họng)", "Khí quản", "Phế quản"], c: 1, img: "hinh 1.jpg" },
+        { q: "Đơn vị cấu tạo nhỏ nhất của phổi, nơi diễn ra trao đổi khí là gì?", a: ["Tiểu phế quản", "Niêm mạc", "Phế nang", "Màng phổi"], c: 2, img: "hinh 2.jpg" },
+        { q: "Khi chúng ta hít vào, cơ hoành sẽ chuyển động như thế nào?", a: ["Co lại và hạ xuống", "Dãn ra và nâng lên", "Không di chuyển", "Thu nhỏ lại"], c: 0, img: "hinh 3.jpg" },
+        { q: "Chất khí nào chiếm tỉ lệ lớn nhất trong không khí ta hít vào?", a: ["Oxy", "Cacbonic", "Nitơ", "Argon"], c: 2, img: "hinh 4.jpg" },
+        { q: "Bộ phận nào giúp ngăn thức ăn không rơi vào đường hô hấp khi nuốt?", a: ["Dây thanh quản", "Nắp thanh quản", "Lưỡi gà", "Amidan"], c: 1, img: "hinh 1.jpg" },
+        { q: "Phổi phải của người thường có bao nhiêu thùy?", a: ["1 thùy", "2 thùy", "3 thùy", "4 thùy"], c: 2 , img: "hinh 1.jpg"},
+        { q: "Lớp màng bao bọc bên ngoài phổi được gọi là gì?", a: ["Màng tim", "Màng bụng", "Màng phổi", "Màng xương"], c: 2 , img: "hinh 1.jpg"},
+        { q: "Chức năng chính của hệ hô hấp là gì?", a: ["Vận chuyển chất dinh dưỡng", "Cung cấp Oxy và loại bỏ CO2", "Điều hòa thân nhiệt", "Tiêu hóa thức ăn"], c: 1, img: "hinh 1.jpg" },
+        { q: "Đâu là bộ phận thuộc đường hô hấp dưới?", a: ["Mũi", "Họng", "Thanh quản", "Khí quản"], c: 3, img: "hinh 1.jpg" },
+        { q: "Trong máu, Oxy chủ yếu được vận chuyển bởi?", a: ["Bạch cầu", "Tiểu cầu", "Huyết tương", "Hồng cầu (Hemoglobin)"], c: 3, img: "hinh 1.jpg" }
     ];
 
     let currentIdx = 0;
@@ -55,6 +55,7 @@
     let answered = false;
 
     const questionEl = document.getElementById('question');
+    const hinhEl = document.getElementById('hinh');
     const optionsEl = document.getElementById('options');
     const progressEl = document.getElementById('progress');
     const nextBtn = document.getElementById('next-btn');
@@ -65,6 +66,7 @@
         const currentQuiz = quizData[currentIdx];
         progressEl.innerText = `Câu hỏi ${currentIdx + 1}/${quizData.length}`;
         questionEl.innerText = currentQuiz.q;
+        hinhEl.src = "hinh/" + currentQuiz.img; 
         optionsEl.innerHTML = '';
 
         currentQuiz.a.forEach((opt, i) => {
